@@ -59,11 +59,11 @@ describe('J5 — Budget exceeded → increase → resume', () => {
       // After step-1 (600 used): 600 > 1000 = false → runs
       // After step-2 (1200 used): 1200 > 1000 = true → step-3 blocked
       const ctx1 = runPipeline(1000);
-      await ctx1.model.anthropic('step-1', 'model', 'prompt');
-      await ctx1.model.anthropic('step-2', 'model', 'prompt');
+      await ctx1.step('step-1', () => ctx1.model.anthropic('model', 'prompt'));
+      await ctx1.step('step-2', () => ctx1.model.anthropic('model', 'prompt'));
       // step-3 should throw because budget is exceeded (1200 > 1000)
       await assert.rejects(
-        () => ctx1.model.anthropic('step-3', 'model', 'prompt'),
+        () => ctx1.step('step-3', () => ctx1.model.anthropic('model', 'prompt')),
         BudgetExceededError,
       );
 
@@ -75,11 +75,11 @@ describe('J5 — Budget exceeded → increase → resume', () => {
 
       // Run 2: budget=5000 — prior usage (1200) restored, headroom=3800
       const ctx2 = runPipeline(5000);
-      const r1 = await ctx2.model.anthropic('step-1', 'model', 'prompt');
-      const r2 = await ctx2.model.anthropic('step-2', 'model', 'prompt');
-      const r3 = await ctx2.model.anthropic('step-3', 'model', 'prompt');
-      const r4 = await ctx2.model.anthropic('step-4', 'model', 'prompt');
-      const r5 = await ctx2.model.anthropic('step-5', 'model', 'prompt');
+      const r1 = await ctx2.step('step-1', () => ctx2.model.anthropic('model', 'prompt'));
+      const r2 = await ctx2.step('step-2', () => ctx2.model.anthropic('model', 'prompt'));
+      const r3 = await ctx2.step('step-3', () => ctx2.model.anthropic('model', 'prompt'));
+      const r4 = await ctx2.step('step-4', () => ctx2.model.anthropic('model', 'prompt'));
+      const r5 = await ctx2.step('step-5', () => ctx2.model.anthropic('model', 'prompt'));
 
       // Steps 1-2 return cached value 'ok' (not 'resumed') since they were cached
       assert.equal(r1, 'ok', 'step-1 should return cached value');

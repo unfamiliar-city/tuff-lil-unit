@@ -54,9 +54,9 @@ describe('ClaudeCLIProvider', () => {
         'budget-cli',
         { stateDir, concurrency: 1, budget: { tokens: 100 } },
         async (ctx) => {
-          await ctx.agent.claudeCode('job1', MODEL, 'Say: one');
-          await ctx.agent.claudeCode('job2', MODEL, 'Say: two');
-          await ctx.agent.claudeCode('job3', MODEL, 'Say: three');
+          await ctx.step('job1', () => ctx.agent.claudeCode(MODEL, 'Say: one'));
+          await ctx.step('job2', () => ctx.agent.claudeCode(MODEL, 'Say: two'));
+          await ctx.step('job3', () => ctx.agent.claudeCode(MODEL, 'Say: three'));
         }
       );
     } catch (e) {
@@ -76,11 +76,8 @@ describe('ClaudeCLIProvider', () => {
         'step-budget',
         { stateDir, concurrency: 1 },
         async (ctx) => {
-          const result = await ctx.agent.claudeCode(
-            'capped',
-            MODEL,
-            'Write a long essay about the history of computing.',
-            { maxTokens: 50 },
+          const result = await ctx.step('capped', () =>
+            ctx.agent.claudeCode(MODEL, 'Write a long essay about the history of computing.', { maxTokens: 50 }),
           );
           // If monitorBudget killed it, we still get a result (possibly partial/empty)
           // The key assertion: the step completes without hanging
@@ -102,7 +99,7 @@ describe('ClaudeCLIProvider', () => {
         { stateDir, concurrency: 1, budget: { tokens: 2000 } },
         async (ctx) => {
           for (let i = 0; i < 10; i++) {
-            await ctx.agent.claudeCode(`step-${i}`, MODEL, `Say exactly: ${i}`);
+            await ctx.step(`step-${i}`, () => ctx.agent.claudeCode(MODEL, `Say exactly: ${i}`));
             completedSteps++;
           }
         },
@@ -135,8 +132,8 @@ describe('ClaudeCLIProvider', () => {
         `cleanup-${tag}`,
         { stateDir, concurrency: 1, budget: { tokens: 100 } },
         async (ctx) => {
-          await ctx.agent.claudeCode('j1', MODEL, 'Say: one');
-          await ctx.agent.claudeCode('j2', MODEL, 'Say: two');
+          await ctx.step('j1', () => ctx.agent.claudeCode(MODEL, 'Say: one'));
+          await ctx.step('j2', () => ctx.agent.claudeCode(MODEL, 'Say: two'));
         },
       );
     } catch {
