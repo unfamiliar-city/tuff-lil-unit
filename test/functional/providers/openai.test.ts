@@ -38,9 +38,9 @@ describe('OpenAI provider', () => {
         'budget-openai',
         { stateDir, concurrency: 1, budget: { tokens: 100 } },
         async (ctx) => {
-          await ctx.model.openai('job1', MODEL, 'Say: one');
-          await ctx.model.openai('job2', MODEL, 'Say: two');
-          await ctx.model.openai('job3', MODEL, 'Say: three');
+          await ctx.step('job1', () => ctx.model.openai(MODEL, 'Say: one'));
+          await ctx.step('job2', () => ctx.model.openai(MODEL, 'Say: two'));
+          await ctx.step('job3', () => ctx.model.openai(MODEL, 'Say: three'));
         }
       );
     } catch (e) {

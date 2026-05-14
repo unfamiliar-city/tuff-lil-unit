@@ -65,7 +65,7 @@ describe('Step budget: pre-call input check', () => {
 
     await assert.rejects(
       () =>
-        ctx.model.anthropic('over-budget', 'claude-haiku-4-5-20251001', longPrompt, {
+        ctx.model.anthropic('claude-haiku-4-5-20251001', longPrompt, {
           maxInputTokens: 50,
         }),
       (err: Error) => {
@@ -84,7 +84,7 @@ describe('Step budget: pre-call input check', () => {
 
     await assert.rejects(
       () =>
-        ctx.model.openai('over-budget', 'gpt-5-mini', longPrompt, {
+        ctx.model.openai('gpt-5-mini', longPrompt, {
           maxInputTokens: 10,
         }),
       BudgetExceededError,
@@ -99,7 +99,7 @@ describe('Step budget: pre-call input check', () => {
 
     await assert.rejects(
       () =>
-        ctx.agent.claudeCode('over-budget', 'claude-sonnet-4-5-20250514', longPrompt, {
+        ctx.agent.claudeCode('claude-sonnet-4-5-20250514', longPrompt, {
           maxInputTokens: 10,
         }),
       BudgetExceededError,
@@ -116,7 +116,7 @@ describe('Step budget: pre-call input check', () => {
     // The error should NOT be BudgetExceededError.
     await assert.rejects(
       () =>
-        ctx.model.anthropic('under-budget', 'claude-haiku-4-5-20251001', shortPrompt, {
+        ctx.model.anthropic('claude-haiku-4-5-20251001', shortPrompt, {
           maxInputTokens: 1000,
         }),
       (err: Error) => {
@@ -139,7 +139,7 @@ describe('Step budget: pre-call input check', () => {
     // Fails at provider level, not budget.
     await assert.rejects(
       () =>
-        ctx.model.anthropic('no-limit', 'claude-haiku-4-5-20251001', longPrompt, {
+        ctx.model.anthropic('claude-haiku-4-5-20251001', longPrompt, {
           maxTokens: 100, // only output cap, no input check
         }),
       (err: Error) => {
@@ -164,7 +164,7 @@ describe('Step budget: custom tokenEstimator', () => {
 
     await assert.rejects(
       () =>
-        ctx.model.anthropic('custom-est', 'claude-haiku-4-5-20251001', 'tiny', {
+        ctx.model.anthropic('claude-haiku-4-5-20251001', 'tiny', {
           maxInputTokens: 500,
           tokenEstimator: customEstimator,
         }),
@@ -188,7 +188,7 @@ describe('Step budget: custom tokenEstimator', () => {
     // Pre-call passes, then fails at provider
     await assert.rejects(
       () =>
-        ctx.model.anthropic('custom-low', 'claude-haiku-4-5-20251001', longPrompt, {
+        ctx.model.anthropic('claude-haiku-4-5-20251001', longPrompt, {
           maxInputTokens: 10,
           tokenEstimator: customEstimator,
         }),
@@ -214,9 +214,9 @@ describe('Step budget: cached steps bypass input check', () => {
 
     // Even with an impossibly low maxInputTokens, the cached step should return
     // without hitting the pre-call check (because step() returns from cache before fn runs)
-    const result = await ctx.model.anthropic('cached-step', 'claude-haiku-4-5-20251001', 'x'.repeat(10_000), {
-      maxInputTokens: 1,
-    });
+    const result = await ctx.step('cached-step', () =>
+      ctx.model.anthropic('claude-haiku-4-5-20251001', 'x'.repeat(10_000), { maxInputTokens: 1 }),
+    );
 
     assert.equal(result, 'cached-result');
 
@@ -233,7 +233,7 @@ describe('Step budget: maxInputTokens boundary conditions', () => {
     // Pre-call passes, then fails at provider
     await assert.rejects(
       () =>
-        ctx.model.anthropic('boundary', 'claude-haiku-4-5-20251001', prompt, {
+        ctx.model.anthropic('claude-haiku-4-5-20251001', prompt, {
           maxInputTokens: 10,
         }),
       (err: Error) => {
@@ -254,7 +254,7 @@ describe('Step budget: maxInputTokens boundary conditions', () => {
 
     await assert.rejects(
       () =>
-        ctx.model.anthropic('one-over', 'claude-haiku-4-5-20251001', prompt, {
+        ctx.model.anthropic('claude-haiku-4-5-20251001', prompt, {
           maxInputTokens: 10,
         }),
       BudgetExceededError,
@@ -277,9 +277,11 @@ describe('Step budget: interaction with global budget', () => {
     // so per-step maxInputTokens never gets checked
     await assert.rejects(
       () =>
-        ctx.model.anthropic('global-first', 'claude-haiku-4-5-20251001', 'short', {
-          maxInputTokens: 1_000_000,
-        }),
+        ctx.step('global-first', () =>
+          ctx.model.anthropic('claude-haiku-4-5-20251001', 'short', {
+            maxInputTokens: 1_000_000,
+          }),
+        ),
       (err: Error) => {
         assert.ok(err instanceof BudgetExceededError);
         assert.equal(err.message, 'Budget exceeded');
@@ -299,7 +301,7 @@ describe('Step budget: interaction with global budget', () => {
 
     await assert.rejects(
       () =>
-        ctx.model.anthropic('step-limit', 'claude-haiku-4-5-20251001', longPrompt, {
+        ctx.model.anthropic('claude-haiku-4-5-20251001', longPrompt, {
           maxInputTokens: 50,
         }),
       (err: Error) => {
@@ -322,7 +324,7 @@ describe('Step budget: stripBudgetOpts (indirect)', () => {
     // is invoked (and fails due to missing API key), not rejected by the framework.
     await assert.rejects(
       () =>
-        ctx.model.anthropic('passthrough', 'claude-haiku-4-5-20251001', 'test', {
+        ctx.model.anthropic('claude-haiku-4-5-20251001', 'test', {
           maxTokens: 100,
           maxInputTokens: 1000,
           onExceed: 'warn',
@@ -393,7 +395,7 @@ describe('Step budget: onExceed default behavior', () => {
     // No explicit onExceed — default is 'throw'
     await assert.rejects(
       () =>
-        ctx.model.anthropic('default-throw', 'claude-haiku-4-5-20251001', longPrompt, {
+        ctx.model.anthropic('claude-haiku-4-5-20251001', longPrompt, {
           maxInputTokens: 50,
         }),
       BudgetExceededError,
@@ -410,7 +412,7 @@ describe('Step budget: onExceed default behavior', () => {
     // onExceed only controls post-call behavior where tokens were already spent.
     await assert.rejects(
       () =>
-        ctx.model.anthropic('warn-precall', 'claude-haiku-4-5-20251001', longPrompt, {
+        ctx.model.anthropic('claude-haiku-4-5-20251001', longPrompt, {
           maxInputTokens: 50,
           onExceed: 'warn',
         }),
@@ -431,7 +433,7 @@ describe('Step budget: agent.claudeCode maxTokens threading', () => {
 
     await assert.rejects(
       () =>
-        ctx.agent.claudeCode('cli-budget', 'claude-sonnet-4-5-20250514', longPrompt, {
+        ctx.agent.claudeCode('claude-sonnet-4-5-20250514', longPrompt, {
           maxTokens: 10_000,
           maxInputTokens: 50,
         }),

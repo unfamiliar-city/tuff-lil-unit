@@ -12,7 +12,7 @@ async function runConcurrentCLI(n: number, stateDir: string): Promise<string[]> 
   await tuff(`concurrent-cli-${n}`, { stateDir, concurrency: n }, async (ctx) => {
     const outputs = await Promise.all(
       Array.from({ length: n }, (_, i) =>
-        ctx.agent.claudeCode(`job-${i}`, MODEL, `Say exactly: ${i}`)
+        ctx.step(`job-${i}`, () => ctx.agent.claudeCode(MODEL, `Say exactly: ${i}`))
       )
     );
     for (const output of outputs) {

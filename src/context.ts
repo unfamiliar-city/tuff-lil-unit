@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type Database from 'better-sqlite3';
 import pLimit from 'p-limit';
 import pRetry from 'p-retry';
@@ -72,8 +73,9 @@ export class Context {
   #registered: number = 0;
   #completed: number = 0;
 
-  // Per-step usage side-channel: provider helpers write here, step() reads for persistence.
-  // Concurrency-safe because step IDs are unique.
+  // AsyncLocalStorage propagates the enclosing step ID through async continuations,
+  // so concurrent steps never clobber each other's IDs in provider usage tracking.
+  #stepIdStore = new AsyncLocalStorage<string>();
   #stepUsage = new Map<string, TokenUsage>();
 
   // Lazy provider instances — constructed on first use, shared across all calls
@@ -129,19 +131,52 @@ export class Context {
     }
   }
 
-  #checkPostCallUsage(id: string, usage: TokenUsage, opts?: StepBudget): void {
+  #checkGlobalBudget(): void {
+    if (this.#budget.isExceeded()) {
+      throw new BudgetExceededError('Budget exceeded');
+    }
+  }
+
+  #checkPostCallUsage(usage: TokenUsage, opts?: StepBudget): void {
     if (!opts) return;
     const exceeded =
       (opts.maxInputTokens && usage.inputTokens > opts.maxInputTokens) ||
       (opts.maxTokens && usage.outputTokens > opts.maxTokens);
     if (!exceeded) return;
 
-    const msg = `Step '${id}' exceeded budget: ${usage.inputTokens} input, ${usage.outputTokens} output`;
+    const stepId = this.#stepIdStore.getStore() ?? '(untracked)';
+    const msg = `Step '${stepId}' exceeded budget: ${usage.inputTokens} input, ${usage.outputTokens} output`;
     if (opts.onExceed === 'warn') {
       console.warn(`[tuff] ${msg}`);
       return;
     }
     throw new BudgetExceededError(msg);
+  }
+
+  /**
+   * Bare provider calls go through the limiter so fan-out (Promise.all of provider
+   * calls) respects pipeline concurrency. Inside a step, the step already holds a
+   * limiter slot — re-acquiring would deadlock at concurrency=1, so skip.
+   */
+  #gated<T>(fn: () => Promise<T>): Promise<T> {
+    return this.#stepIdStore.getStore() !== undefined ? fn() : this.#limiter(fn);
+  }
+
+  #recordUsage(usage: TokenUsage): void {
+    this.#budget.consume(usage);
+    const stepId = this.#stepIdStore.getStore();
+    if (stepId === undefined) return;
+    const prev = this.#stepUsage.get(stepId);
+    if (prev) {
+      this.#stepUsage.set(stepId, {
+        inputTokens: prev.inputTokens + usage.inputTokens,
+        outputTokens: prev.outputTokens + usage.outputTokens,
+        cacheCreationTokens: (prev.cacheCreationTokens ?? 0) + (usage.cacheCreationTokens ?? 0),
+        cacheReadTokens: (prev.cacheReadTokens ?? 0) + (usage.cacheReadTokens ?? 0),
+      });
+    } else {
+      this.#stepUsage.set(stepId, usage);
+    }
   }
 
   /**
@@ -153,6 +188,14 @@ export class Context {
    * class instances silently corrupt on round-trip.
    */
   async step<T>(id: string, fn: () => Promise<T>, options?: StepOptions): Promise<T> {
+    if (this.#stepIdStore.getStore() !== undefined) {
+      throw new Error(
+        `ctx.step() cannot be nested inside another step or upsert.\n` +
+        `Steps are the durability boundary — put execution (provider calls,\n` +
+        `fetch, etc.) inside them, not other steps.`,
+      );
+    }
+
     const force = options?.force || this.#forceStage;
     if (force) {
       this.#state.deleteStep(id);
@@ -175,13 +218,17 @@ export class Context {
 
       const startTime = Date.now();
       try {
+        // stepIdStore.run propagates the step ID through all async continuations,
+        // so providers called inside fn() can associate their usage with this step.
         // Check signal at the start of each retry attempt rather than passing it to
         // pRetry directly — pRetry would race the signal against fn(), which breaks
         // the case where fn() itself triggers the abort (e.g., budget kill).
-        const result = await pRetry(() => {
-          if (this.#signal.aborted) throw new AbortError();
-          return fn();
-        }, createRetryConfig());
+        const result = await this.#stepIdStore.run(id, () =>
+          pRetry(() => {
+            if (this.#signal.aborted) throw new AbortError();
+            return fn();
+          }, createRetryConfig()),
+        );
 
         const durationMs = Date.now() - startTime;
         const usage = this.#stepUsage.get(id);
@@ -238,71 +285,71 @@ export class Context {
   // Agent providers (subprocess-based coding agents — model chosen per-call)
   readonly agent = {
     /**
-     * Execute a step via the Claude Code CLI (experimental).
+     * Execute a prompt via the Claude Code CLI (experimental).
      * Spawns a headless `claude -p` subprocess using your local CLI subscription.
-     * Budget is enforced by monitoring the live transcript mid-execution.
-     * API may change in future releases.
+     * Wrap in ctx.step() for durability and crash recovery.
      * @experimental
      */
-    claudeCode: (id: string, model: string, prompt: string, opts?: StepBudget): Promise<unknown> => {
+    claudeCode: async (model: string, prompt: string, opts?: StepBudget): Promise<unknown> => {
       this.#claudeCode ??= new ClaudeCLIProvider();
-      return this.step(id, async () => {
-        this.#checkInputBudget(prompt, opts);
+      this.#checkGlobalBudget();
+      this.#checkInputBudget(prompt, opts);
+      const exec = async () => {
         const result = await this.#claudeCode!.execute(prompt, {
           model,
           maxTokens: opts?.maxTokens,
           signal: this.#signal,
         });
-        this.#budget.consume(result.usage);
-        this.#stepUsage.set(id, result.usage);
-        this.#checkPostCallUsage(id, result.usage, opts);
+        this.#recordUsage(result.usage);
+        this.#checkPostCallUsage(result.usage, opts);
         return result.output;
-      });
+      };
+      return this.#gated(exec);
     },
   };
 
   // Model providers (direct HTTP API calls — model required per-call)
   readonly model = {
-    anthropic: <T>(
-      id: string,
+    anthropic: async <T>(
       model: string,
       prompt: string,
       opts?: StepBudget & Record<string, unknown>,
     ): Promise<T> => {
       this.#anthropic ??= createAnthropicProvider();
-      return this.step(id, async () => {
-        this.#checkInputBudget(prompt, opts);
+      this.#checkGlobalBudget();
+      this.#checkInputBudget(prompt, opts);
+      const exec = async () => {
         const result = await this.#anthropic!.execute(prompt, {
           model,
           signal: this.#signal,
           ...stripBudgetOpts(opts),
         });
-        this.#budget.consume(result.usage);
-        this.#stepUsage.set(id, result.usage);
-        this.#checkPostCallUsage(id, result.usage, opts);
+        this.#recordUsage(result.usage);
+        this.#checkPostCallUsage(result.usage, opts);
         return result.output as T;
-      });
+      };
+      return this.#gated(exec);
     },
 
-    openai: <T>(
-      id: string,
+    openai: async <T>(
       model: string,
       prompt: string,
       opts?: StepBudget & Record<string, unknown>,
     ): Promise<T> => {
       this.#openai ??= createOpenAIProvider();
-      return this.step(id, async () => {
-        this.#checkInputBudget(prompt, opts);
+      this.#checkGlobalBudget();
+      this.#checkInputBudget(prompt, opts);
+      const exec = async () => {
         const result = await this.#openai!.execute(prompt, {
           model,
           signal: this.#signal,
           ...stripBudgetOpts(opts),
         });
-        this.#budget.consume(result.usage);
-        this.#stepUsage.set(id, result.usage);
-        this.#checkPostCallUsage(id, result.usage, opts);
+        this.#recordUsage(result.usage);
+        this.#checkPostCallUsage(result.usage, opts);
         return result.output as T;
-      });
+      };
+      return this.#gated(exec);
     },
   };
 }

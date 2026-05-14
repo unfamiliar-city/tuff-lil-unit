@@ -40,9 +40,9 @@ describe('Anthropic provider', () => {
         'budget-anthropic',
         { stateDir, concurrency: 1, budget: { tokens: 5 } },
         async (ctx) => {
-          await ctx.model.anthropic('job1', MODEL, 'Say: one');
-          await ctx.model.anthropic('job2', MODEL, 'Say: two');
-          await ctx.model.anthropic('job3', MODEL, 'Say: three');
+          await ctx.step('job1', () => ctx.model.anthropic(MODEL, 'Say: one'));
+          await ctx.step('job2', () => ctx.model.anthropic(MODEL, 'Say: two'));
+          await ctx.step('job3', () => ctx.model.anthropic(MODEL, 'Say: three'));
         }
       );
     } catch (e) {
