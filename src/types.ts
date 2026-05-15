@@ -7,10 +7,11 @@ export interface TokenUsage {
 }
 
 // Result from a provider execution
-export interface ProviderResult {
-  output: unknown;
+export interface ProviderResult<T = unknown, R = unknown> {
+  output: T;
   usage: TokenUsage;
   durationMs: number;
+  raw: R;
 }
 
 // Progress update from a running pipeline

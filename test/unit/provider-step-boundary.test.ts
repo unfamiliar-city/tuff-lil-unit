@@ -10,9 +10,11 @@ import type { Provider } from '../../src/providers/base.js';
 import { StateManager } from '../../src/state.js';
 import { createTestDb } from '../helpers.js';
 
+const MOCK_RAW = { sources: [], toolCalls: [], finishReason: 'stop' };
+
 function makeMockProvider(output = 'mock-result', usage = { inputTokens: 10, outputTokens: 5 }): Provider {
   return {
-    execute: async () => ({ output, usage, durationMs: 1 }),
+    execute: async () => ({ output, usage, durationMs: 1, raw: MOCK_RAW }),
   };
 }
 
@@ -79,9 +81,10 @@ describe('Provider inside ctx.step()', () => {
       providers: { anthropic: makeMockProvider('stepped-result') },
     });
 
-    const result = await ctx.step('my-step', () =>
-      ctx.model.anthropic('any-model', 'prompt'),
-    );
+    const result = await ctx.step('my-step', async () => {
+      const { output } = await ctx.model.anthropic('any-model', 'prompt');
+      return output;
+    });
 
     assert.equal(result, 'stepped-result');
 
@@ -93,7 +96,10 @@ describe('Provider inside ctx.step()', () => {
       providers: { anthropic: makeMockProvider('persisted') },
     });
 
-    await ctx.step('persist-me', () => ctx.model.anthropic('any-model', 'prompt'));
+    await ctx.step('persist-me', async () => {
+      const { output } = await ctx.model.anthropic('any-model', 'prompt');
+      return output;
+    });
 
     const cached = state.getStep('persist-me');
     assert.equal(cached, 'persisted');
@@ -120,7 +126,7 @@ describe('Provider inside ctx.step()', () => {
     const mockProvider: Provider = {
       execute: async () => {
         callCount++;
-        return { output: 'cached', usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 1 };
+        return { output: 'cached', usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 1, raw: MOCK_RAW };
       },
     };
     const { ctx, stateDir, db } = makeContext({ providers: { anthropic: mockProvider } });
@@ -149,8 +155,8 @@ describe('Provider inside ctx.upsert() run', () => {
       table: 'analyses',
       key: (item) => `analyse-${item.id}`,
       run: async (item) => {
-        const result = await ctx.model.anthropic<string>('any-model', `analyse ${item.id}`);
-        return { id: item.id, result };
+        const { output } = await ctx.model.anthropic<string>('any-model', `analyse ${item.id}`);
+        return { id: item.id, result: output };
       },
       map: (row) => row as Record<string, unknown>,
     });
@@ -168,7 +174,7 @@ describe('Provider inside ctx.upsert() run', () => {
     const mockProvider: Provider = {
       execute: async () => {
         callCount++;
-        return { output: `result-${callCount}`, usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 1 };
+        return { output: `result-${callCount}`, usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 1, raw: MOCK_RAW };
       },
     };
     const { ctx, stateDir, db } = makeContext({ providers: { anthropic: mockProvider } });
@@ -180,7 +186,10 @@ describe('Provider inside ctx.upsert() run', () => {
     await ctx.upsert(items, {
       table: 'memos',
       key: (item) => `memo-${item.id}`,
-      run: (item) => ctx.model.anthropic('any-model', `process ${item.id}`),
+      run: async (item) => {
+        const { output } = await ctx.model.anthropic('any-model', `process ${item.id}`);
+        return output;
+      },
       map: (result) => ({ id: 'x', val: String(result) }),
     });
     assert.equal(callCount, 1);
@@ -189,7 +198,10 @@ describe('Provider inside ctx.upsert() run', () => {
     await ctx.upsert(items, {
       table: 'memos',
       key: (item) => `memo-${item.id}`,
-      run: (item) => ctx.model.anthropic('any-model', `process ${item.id}`),
+      run: async (item) => {
+        const { output } = await ctx.model.anthropic('any-model', `process ${item.id}`);
+        return output;
+      },
       map: (result) => ({ id: 'x', val: String(result) }),
     });
     assert.equal(callCount, 1, 'provider should not be called again on resume');
@@ -199,13 +211,13 @@ describe('Provider inside ctx.upsert() run', () => {
 });
 
 describe('Provider outside ctx.step()', () => {
-  test('provider called directly executes without durability', async () => {
+  test('provider called directly returns ProviderResult', async () => {
     const { ctx, stateDir, db } = makeContext({
       providers: { anthropic: makeMockProvider('raw') },
     });
 
     const result = await ctx.model.anthropic('any-model', 'prompt');
-    assert.equal(result, 'raw');
+    assert.equal(result.output, 'raw');
 
     cleanup(stateDir, db);
   });
@@ -231,7 +243,7 @@ describe('Provider outside ctx.step()', () => {
         peak = Math.max(peak, inFlight);
         await new Promise((r) => setTimeout(r, 10));
         inFlight--;
-        return { output: 'ok', usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 10 };
+        return { output: 'ok', usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 10, raw: MOCK_RAW };
       },
     };
     const { ctx, stateDir, db } = makeContext({
@@ -258,7 +270,7 @@ describe('Provider outside ctx.step()', () => {
     const result = await ctx.step('outer', async () => {
       const a = await ctx.model.anthropic('any-model', 'p1');
       const b = await ctx.model.anthropic('any-model', 'p2');
-      return [a, b];
+      return [a.output, b.output];
     });
     assert.deepEqual(result, ['ok', 'ok']);
 
@@ -270,7 +282,7 @@ describe('Provider outside ctx.step()', () => {
     const mockProvider: Provider = {
       execute: async () => {
         callCount++;
-        return { output: 'should-not-run', usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 1 };
+        return { output: 'should-not-run', usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 1, raw: MOCK_RAW };
       },
     };
     const { ctx, budgetManager, stateDir, db } = makeContext({

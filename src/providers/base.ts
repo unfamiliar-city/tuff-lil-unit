@@ -11,11 +11,28 @@ export class RateLimitError extends Error {
   }
 }
 
-export interface Provider {
+export interface Provider<R = unknown> {
   execute(
     prompt: string,
     options: { model: string; maxTokens?: number; signal?: AbortSignal } & Record<string, unknown>
-  ): Promise<ProviderResult>;
+  ): Promise<ProviderResult<unknown, R>>;
+}
+
+/** Serializable subset of a Vercel AI SDK text/object generation result. */
+export interface VercelAISource {
+  readonly url: string;
+  readonly title?: string;
+  readonly sourceType: string;  // 'url' for web search results
+}
+
+export interface VercelAIRaw {
+  readonly text?: string;
+  readonly object?: unknown;
+  readonly sources: VercelAISource[];
+  readonly toolCalls: Array<unknown>;
+  readonly finishReason?: string;
+  /** Raw provider response body. For openai.responses() contains output[] with web_search_call traces. */
+  readonly responseBody?: unknown;
 }
 
 export function extractRetryAfter(headers?: Record<string, string>): number | undefined {
@@ -40,7 +57,7 @@ export function extractRetryAfter(headers?: Record<string, string>): number | un
 export function createVercelAIProvider(
   createModel: (id: string) => LanguageModel,
   options?: { extractCacheTokens?: boolean },
-): Provider {
+): Provider<VercelAIRaw> {
   return {
     async execute(prompt, executeOptions) {
       const startTime = Date.now();
@@ -50,6 +67,7 @@ export function createVercelAIProvider(
         let output: unknown;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let rawUsage: { inputTokens?: number; outputTokens?: number; [key: string]: any };
+        let raw: VercelAIRaw;
 
         if (schema) {
           const result = await generateObject({
@@ -64,6 +82,11 @@ export function createVercelAIProvider(
           });
           output = result.object;
           rawUsage = result.usage;
+          raw = {
+            object: result.object,
+            sources: [],
+            toolCalls: [],
+          };
         } else {
           const result = await generateText({
             model: createModel(modelId),
@@ -75,6 +98,13 @@ export function createVercelAIProvider(
           });
           output = result.text;
           rawUsage = result.usage;
+          raw = {
+            text: result.text,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            sources: result.sources as any as VercelAISource[],
+            toolCalls: result.toolCalls,
+            responseBody: result.response?.body,
+          };
         }
 
         const usage: TokenUsage = {
@@ -86,7 +116,7 @@ export function createVercelAIProvider(
           }),
         };
 
-        return { output, usage, durationMs: Date.now() - startTime };
+        return { output, usage, durationMs: Date.now() - startTime, raw };
       } catch (error: unknown) {
         const errorObj = error as {
           status?: number;
