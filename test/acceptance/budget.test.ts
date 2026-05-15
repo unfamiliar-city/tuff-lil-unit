@@ -4,11 +4,13 @@ import Database from 'better-sqlite3';
 import { Context } from '../../src/context.js';
 import { BudgetManager } from '../../src/budget.js';
 import { BudgetExceededError } from '../../src/budget.js';
-import type { Provider } from '../../src/budget.js';
+import type { Provider } from '../../src/providers/base.js';
 import { StateManager } from '../../src/state.js';
 import { syncSchema } from '../../src/schema-sync.js';
 import { SCHEMA_SQL } from '../../src/schema.js';
 import { makeTempDir, cleanup } from './helpers.js';
+
+const MOCK_RAW = { sources: [], toolCalls: [] };
 
 // Mock provider: 400 input + 200 output = 600 total tokens per call
 function makeMockProvider(): Provider {
@@ -17,6 +19,7 @@ function makeMockProvider(): Provider {
       output: 'ok',
       usage: { inputTokens: 400, outputTokens: 200 },
       durationMs: 1,
+      raw: MOCK_RAW,
     }),
   };
 }
@@ -59,11 +62,11 @@ describe('J5 — Budget exceeded → increase → resume', () => {
       // After step-1 (600 used): 600 > 1000 = false → runs
       // After step-2 (1200 used): 1200 > 1000 = true → step-3 blocked
       const ctx1 = runPipeline(1000);
-      await ctx1.step('step-1', () => ctx1.model.anthropic('model', 'prompt'));
-      await ctx1.step('step-2', () => ctx1.model.anthropic('model', 'prompt'));
+      await ctx1.step('step-1', async () => (await ctx1.model.anthropic('model', 'prompt')).output);
+      await ctx1.step('step-2', async () => (await ctx1.model.anthropic('model', 'prompt')).output);
       // step-3 should throw because budget is exceeded (1200 > 1000)
       await assert.rejects(
-        () => ctx1.step('step-3', () => ctx1.model.anthropic('model', 'prompt')),
+        () => ctx1.step('step-3', async () => (await ctx1.model.anthropic('model', 'prompt')).output),
         BudgetExceededError,
       );
 
@@ -75,11 +78,11 @@ describe('J5 — Budget exceeded → increase → resume', () => {
 
       // Run 2: budget=5000 — prior usage (1200) restored, headroom=3800
       const ctx2 = runPipeline(5000);
-      const r1 = await ctx2.step('step-1', () => ctx2.model.anthropic('model', 'prompt'));
-      const r2 = await ctx2.step('step-2', () => ctx2.model.anthropic('model', 'prompt'));
-      const r3 = await ctx2.step('step-3', () => ctx2.model.anthropic('model', 'prompt'));
-      const r4 = await ctx2.step('step-4', () => ctx2.model.anthropic('model', 'prompt'));
-      const r5 = await ctx2.step('step-5', () => ctx2.model.anthropic('model', 'prompt'));
+      const r1 = await ctx2.step('step-1', async () => (await ctx2.model.anthropic('model', 'prompt')).output);
+      const r2 = await ctx2.step('step-2', async () => (await ctx2.model.anthropic('model', 'prompt')).output);
+      const r3 = await ctx2.step('step-3', async () => (await ctx2.model.anthropic('model', 'prompt')).output);
+      const r4 = await ctx2.step('step-4', async () => (await ctx2.model.anthropic('model', 'prompt')).output);
+      const r5 = await ctx2.step('step-5', async () => (await ctx2.model.anthropic('model', 'prompt')).output);
 
       // Steps 1-2 return cached value 'ok' (not 'resumed') since they were cached
       assert.equal(r1, 'ok', 'step-1 should return cached value');

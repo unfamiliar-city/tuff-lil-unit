@@ -45,6 +45,10 @@ describe('createVercelAIProvider', () => {
     assert.equal(result.usage.inputTokens, 10);
     assert.equal(result.usage.outputTokens, 20);
     assert.ok(result.durationMs >= 0);
+    assert.equal(result.raw.text, 'hello world');
+    assert.ok(Array.isArray(result.raw.sources));
+    assert.ok(Array.isArray(result.raw.toolCalls));
+    assert.ok(Array.isArray(result.raw.toolResults));
   });
 
   it('object path — schema present returns result.object', async () => {
@@ -59,6 +63,9 @@ describe('createVercelAIProvider', () => {
     assert.deepEqual(result.output, { name: 'test' });
     assert.equal(result.usage.inputTokens, 15);
     assert.equal(result.usage.outputTokens, 25);
+    assert.deepEqual(result.raw.object, { name: 'test' });
+    assert.deepEqual(result.raw.sources, []);
+    assert.deepEqual(result.raw.toolResults, []);
   });
 
   it('extractCacheTokens — includes cache fields when enabled', async () => {

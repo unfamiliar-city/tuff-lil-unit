@@ -4,13 +4,14 @@ import pLimit from 'p-limit';
 import pRetry from 'p-retry';
 import { BudgetManager } from './budget.js';
 import { BudgetExceededError } from './budget.js';
-import type { Provider } from './providers/base.js';
+import type { Provider, VercelAIRaw } from './providers/base.js';
 import { ClaudeCLIProvider } from './providers/claude-cli.js';
+import type { ClaudeCLIRaw } from './providers/claude-cli.js';
 import { createAnthropicProvider } from './providers/anthropic.js';
 import { createOpenAIProvider } from './providers/openai.js';
 import { createRetryConfig } from './retry.js';
 import { StateManager } from './state.js';
-import type { Progress, TokenUsage, StepBudget } from './types.js';
+import type { Progress, ProviderResult, TokenUsage, StepBudget } from './types.js';
 import { upsertRow } from './upsert.js';
 
 /** Default token estimator: ~4 chars per token, conservative (overestimates = safer for budgets). */
@@ -290,7 +291,7 @@ export class Context {
      * Wrap in ctx.step() for durability and crash recovery.
      * @experimental
      */
-    claudeCode: async (model: string, prompt: string, opts?: StepBudget): Promise<unknown> => {
+    claudeCode: async (model: string, prompt: string, opts?: StepBudget): Promise<ProviderResult<string, ClaudeCLIRaw>> => {
       this.#claudeCode ??= new ClaudeCLIProvider();
       this.#checkGlobalBudget();
       this.#checkInputBudget(prompt, opts);
@@ -302,7 +303,7 @@ export class Context {
         });
         this.#recordUsage(result.usage);
         this.#checkPostCallUsage(result.usage, opts);
-        return result.output;
+        return result as ProviderResult<string, ClaudeCLIRaw>;
       };
       return this.#gated(exec);
     },
@@ -314,7 +315,7 @@ export class Context {
       model: string,
       prompt: string,
       opts?: StepBudget & Record<string, unknown>,
-    ): Promise<T> => {
+    ): Promise<ProviderResult<T, VercelAIRaw>> => {
       this.#anthropic ??= createAnthropicProvider();
       this.#checkGlobalBudget();
       this.#checkInputBudget(prompt, opts);
@@ -326,7 +327,7 @@ export class Context {
         });
         this.#recordUsage(result.usage);
         this.#checkPostCallUsage(result.usage, opts);
-        return result.output as T;
+        return { ...result, output: result.output as T } as ProviderResult<T, VercelAIRaw>;
       };
       return this.#gated(exec);
     },
@@ -335,7 +336,7 @@ export class Context {
       model: string,
       prompt: string,
       opts?: StepBudget & Record<string, unknown>,
-    ): Promise<T> => {
+    ): Promise<ProviderResult<T, VercelAIRaw>> => {
       this.#openai ??= createOpenAIProvider();
       this.#checkGlobalBudget();
       this.#checkInputBudget(prompt, opts);
@@ -347,7 +348,7 @@ export class Context {
         });
         this.#recordUsage(result.usage);
         this.#checkPostCallUsage(result.usage, opts);
-        return result.output as T;
+        return { ...result, output: result.output as T } as ProviderResult<T, VercelAIRaw>;
       };
       return this.#gated(exec);
     },

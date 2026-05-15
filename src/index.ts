@@ -13,3 +13,5 @@ export type {
   TokenUsage,
   ProviderResult,
 } from './types.js';
+export type { VercelAIRaw, VercelAISource } from './providers/base.js';
+export type { ClaudeCLIRaw } from './providers/claude-cli.js';
