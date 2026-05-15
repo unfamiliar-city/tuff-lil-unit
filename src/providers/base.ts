@@ -29,10 +29,11 @@ export interface VercelAIRaw {
   readonly text?: string;
   readonly object?: unknown;
   readonly sources: VercelAISource[];
+  /** Tool calls issued (web search appears here as providerExecuted tool-call). */
   readonly toolCalls: Array<unknown>;
+  /** Tool results for providerExecuted tools. Web search traces (queries, pages, sources) live here. */
+  readonly toolResults: Array<unknown>;
   readonly finishReason?: string;
-  /** Raw provider response body. For openai.responses() contains output[] with web_search_call traces. */
-  readonly responseBody?: unknown;
 }
 
 export function extractRetryAfter(headers?: Record<string, string>): number | undefined {
@@ -86,6 +87,7 @@ export function createVercelAIProvider(
             object: result.object,
             sources: [],
             toolCalls: [],
+            toolResults: [],
           };
         } else {
           const result = await generateText({
@@ -103,7 +105,7 @@ export function createVercelAIProvider(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             sources: result.sources as any as VercelAISource[],
             toolCalls: result.toolCalls,
-            responseBody: result.response?.body,
+            toolResults: result.toolResults,
           };
         }
 
