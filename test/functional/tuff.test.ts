@@ -14,7 +14,7 @@ describe('tuff() — functional end-to-end', () => {
 
     const runPipeline = () =>
       tuff('functional-single', { stateDir, concurrency: 1 }, async (ctx) => {
-        const result = await ctx.step('greet', () => ctx.model.anthropic('claude-haiku-4-5-20251001', 'Say exactly: hello'));
+        const result = await ctx.step('greet', async () => (await ctx.model.anthropic('claude-haiku-4-5-20251001', 'Say exactly: hello')).output as string);
         await ctx.step('cache-verify', async () => { callCount++; return 'done'; });
         return result;
       });
@@ -87,20 +87,14 @@ describe('tuff() — functional end-to-end', () => {
 
           const descriptions = await Promise.all(
             items.map((color, i) =>
-              ctx.step(`describe-${i}`, () =>
-                ctx.model.anthropic(
-                  'claude-haiku-4-5-20251001',
-                  `In exactly 3 words, describe the color ${color}.`
-                )
+              ctx.step(`describe-${i}`, async () =>
+                (await ctx.model.anthropic('claude-haiku-4-5-20251001', `In exactly 3 words, describe the color ${color}.`)).output as string
               )
             )
           );
 
-          const summary = await ctx.step('summarize', () =>
-            ctx.model.anthropic(
-              'claude-haiku-4-5-20251001',
-              `Summarize these in one sentence: ${(descriptions as string[]).join(', ')}`
-            )
+          const summary = await ctx.step('summarize', async () =>
+            (await ctx.model.anthropic('claude-haiku-4-5-20251001', `Summarize these in one sentence: ${descriptions.join(', ')}`)).output as string
           );
 
           return { descriptions, summary };
@@ -154,8 +148,8 @@ describe('tuff() — functional end-to-end', () => {
         { stateDir, concurrency: 2 },
         async (ctx) => {
           const [fromAnthropic, fromOpenAI] = await Promise.all([
-            ctx.step('ant', () => ctx.model.anthropic('claude-haiku-4-5-20251001', 'Say exactly: from anthropic')),
-            ctx.step('oai', () => ctx.model.openai('gpt-5-nano', 'Say exactly: from openai')),
+            ctx.step('ant', async () => (await ctx.model.anthropic('claude-haiku-4-5-20251001', 'Say exactly: from anthropic')).output as string),
+            ctx.step('oai', async () => (await ctx.model.openai('gpt-5-nano', 'Say exactly: from openai')).output as string),
           ]);
           return { fromAnthropic, fromOpenAI };
         }

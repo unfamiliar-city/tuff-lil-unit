@@ -13,5 +13,7 @@ export type {
   TokenUsage,
   ProviderResult,
 } from './types.js';
-export type { VercelAIRaw, VercelAISource } from './providers/base.js';
+export type { ModelOpts } from './providers/base.js';
+export type { AnthropicRaw } from './providers/anthropic.js';
+export type { OpenAIRaw, OpenAIWebSearchResult, OpenAIWebSearchAction, OpenAIWebSearchSource } from './providers/openai.js';
 export type { ClaudeCLIRaw } from './providers/claude-cli.js';
