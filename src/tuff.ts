@@ -5,7 +5,7 @@ import { Context } from './context.js';
 import { SCHEMA_SQL } from './schema.js';
 import { syncSchema } from './schema-sync.js';
 import { StateManager } from './state.js';
-import type { DurableConfig } from './types.js';
+import type { TuffConfig } from './types.js';
 
 /**
  * Run a durable pipeline with step memoization. Call again with the same id to
@@ -13,7 +13,7 @@ import type { DurableConfig } from './types.js';
  */
 export async function tuff<T>(
   id: string,
-  config: DurableConfig,
+  config: TuffConfig,
   fn: (ctx: Context) => Promise<T>,
 ): Promise<T> {
   if (!id) throw new Error('tuff: id must be a non-empty string');

@@ -7,7 +7,7 @@ export { SCHEMA_SQL } from './schema.js';
 export type { Context, StepOptions, StageOptions } from './context.js';
 export type { TuffRun, TuffStep, TuffStepFailure } from './schema.js';
 export type {
-  DurableConfig,
+  TuffConfig,
   Progress,
   StepBudget,
   TokenUsage,
