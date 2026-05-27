@@ -8,7 +8,7 @@ import { StateManager } from './state.js';
 import type { TuffConfig } from './types.js';
 
 /**
- * Run a durable pipeline with step memoization. Call again with the same id to
+ * Run a resumable pipeline with step memoization. Call again with the same id to
  * resume — cached steps return instantly, execution continues from first uncached step.
  */
 export async function tuff<T>(

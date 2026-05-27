@@ -175,7 +175,7 @@ export class Context {
   }
 
   /**
-   * Durable step: checks SQLite cache, enforces budget/abort, then executes with
+   * Resumable step: checks SQLite cache, enforces budget/abort, then executes with
    * concurrency limiting and retry. Result is persisted on success; failure is
    * recorded in step_failures for crash forensics and resume control.
    *
