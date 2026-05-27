@@ -2,7 +2,7 @@
 
 ![Tuff Lil Unit](./assets/tuff.jpg)
 
-A lil durable pipeline toolkit for AI coding agents.
+A lil resumable pipeline toolkit for AI coding agents.
 
 Tuff's an ultra-simple implementation of the 'step function' pattern from Temporal and Inngest, built for AI coding agents like Claude Code and friends. Micro-scale, on your local machine.
 
@@ -56,7 +56,7 @@ The entire runtime is one function call:
 // Pipeline 'my-pipeline', state persisted to ./state/tuff.db
 await tuff('my-pipeline', { stateDir: './state' }, async (ctx) => {
 
-  // Durable step — if this succeeded before, returns cached result instantly
+  // Resumable step — if this succeeded before, returns cached result instantly
   const data = await ctx.step('fetch', async () => fetchAll());
 
   // Fan out — one step per item, concurrent within slot limit

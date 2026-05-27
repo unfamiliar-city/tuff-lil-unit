@@ -34,8 +34,8 @@ export interface StepBudget {
   tokenEstimator?: (text: string) => number;
 }
 
-// Configuration for a durable tuff() run
-export interface DurableConfig {
+// Configuration for a tuff() run
+export interface TuffConfig {
   stateDir: string;
   /** Max steps to run in parallel. Defaults to 5 — conservative for rate-limited LLM APIs. */
   concurrency?: number;
