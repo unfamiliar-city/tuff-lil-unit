@@ -4,11 +4,13 @@ import pLimit from 'p-limit';
 import pRetry from 'p-retry';
 import { BudgetManager } from './budget.js';
 import { BudgetExceededError } from './budget.js';
-import type { Provider, VercelAIRaw } from './providers/base.js';
+import type { Provider, ModelOpts } from './providers/base.js';
 import { ClaudeCLIProvider } from './providers/claude-cli.js';
 import type { ClaudeCLIRaw } from './providers/claude-cli.js';
 import { createAnthropicProvider } from './providers/anthropic.js';
+import type { AnthropicRaw } from './providers/anthropic.js';
 import { createOpenAIProvider } from './providers/openai.js';
+import type { OpenAIRaw } from './providers/openai.js';
 import { createRetryConfig } from './retry.js';
 import { StateManager } from './state.js';
 import type { Progress, ProviderResult, TokenUsage, StepBudget } from './types.js';
@@ -19,14 +21,6 @@ export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-/** Strip StepBudget-only fields so they don't leak into provider execute() calls. */
-function stripBudgetOpts(
-  opts?: StepBudget & Record<string, unknown>,
-): Record<string, unknown> {
-  if (!opts) return {};
-  const { maxInputTokens: _, onExceed: __, tokenEstimator: ___, ...rest } = opts;
-  return rest;
-}
 
 export class AbortError extends Error {
   constructor(message = 'Operation was aborted') {
@@ -181,7 +175,7 @@ export class Context {
   }
 
   /**
-   * Durable step: checks SQLite cache, enforces budget/abort, then executes with
+   * Resumable step: checks SQLite cache, enforces budget/abort, then executes with
    * concurrency limiting and retry. Result is persisted on success; failure is
    * recorded in step_failures for crash forensics and resume control.
    *
@@ -314,8 +308,8 @@ export class Context {
     anthropic: async <T>(
       model: string,
       prompt: string,
-      opts?: StepBudget & Record<string, unknown>,
-    ): Promise<ProviderResult<T, VercelAIRaw>> => {
+      opts?: ModelOpts,
+    ): Promise<ProviderResult<T, AnthropicRaw>> => {
       this.#anthropic ??= createAnthropicProvider();
       this.#checkGlobalBudget();
       this.#checkInputBudget(prompt, opts);
@@ -323,11 +317,11 @@ export class Context {
         const result = await this.#anthropic!.execute(prompt, {
           model,
           signal: this.#signal,
-          ...stripBudgetOpts(opts),
+          ...opts,
         });
         this.#recordUsage(result.usage);
         this.#checkPostCallUsage(result.usage, opts);
-        return { ...result, output: result.output as T } as ProviderResult<T, VercelAIRaw>;
+        return { ...result, output: result.output as T } as ProviderResult<T, AnthropicRaw>;
       };
       return this.#gated(exec);
     },
@@ -335,8 +329,8 @@ export class Context {
     openai: async <T>(
       model: string,
       prompt: string,
-      opts?: StepBudget & Record<string, unknown>,
-    ): Promise<ProviderResult<T, VercelAIRaw>> => {
+      opts?: ModelOpts,
+    ): Promise<ProviderResult<T, OpenAIRaw>> => {
       this.#openai ??= createOpenAIProvider();
       this.#checkGlobalBudget();
       this.#checkInputBudget(prompt, opts);
@@ -344,11 +338,11 @@ export class Context {
         const result = await this.#openai!.execute(prompt, {
           model,
           signal: this.#signal,
-          ...stripBudgetOpts(opts),
+          ...opts,
         });
         this.#recordUsage(result.usage);
         this.#checkPostCallUsage(result.usage, opts);
-        return { ...result, output: result.output as T } as ProviderResult<T, VercelAIRaw>;
+        return { ...result, output: result.output as T } as ProviderResult<T, OpenAIRaw>;
       };
       return this.#gated(exec);
     },
