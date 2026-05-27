@@ -137,11 +137,16 @@ export async function monitorBudget(
   });
 }
 
-export class ClaudeCLIProvider implements Provider {
+export interface ClaudeCLIRaw {
+  stdout: string;
+  transcriptPath: string | undefined;
+}
+
+export class ClaudeCLIProvider implements Provider<ClaudeCLIRaw> {
   async execute(
     prompt: string,
     options: { model: string; maxTokens?: number; signal?: AbortSignal } & Record<string, unknown>
-  ): Promise<ProviderResult> {
+  ): Promise<ProviderResult<unknown, ClaudeCLIRaw>> {
     const jobId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     const startTime = Date.now();
 
@@ -204,10 +209,11 @@ export class ClaudeCLIProvider implements Provider {
       });
 
       let usage: TokenUsage;
+      let transcriptPath: string | undefined;
       if (monitorPromise) {
         usage = await monitorPromise;
       } else {
-        const transcriptPath = await findTranscriptFile(transcriptDir);
+        transcriptPath = await findTranscriptFile(transcriptDir);
         usage = transcriptPath ? parseTranscriptTokens(transcriptPath) : { inputTokens: 0, outputTokens: 0 };
       }
 
@@ -221,6 +227,7 @@ export class ClaudeCLIProvider implements Provider {
         output: stdout,
         usage,
         durationMs: Date.now() - startTime,
+        raw: { stdout, transcriptPath },
       };
     } finally {
       if (workDir) {

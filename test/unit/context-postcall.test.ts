@@ -7,13 +7,15 @@ import { mock } from 'node:test';
 import { Context } from '../../src/context.js';
 import { BudgetManager } from '../../src/budget.js';
 import { BudgetExceededError } from '../../src/budget.js';
-import type { Provider } from '../../src/budget.js';
+import type { Provider } from '../../src/providers/base.js';
 import { StateManager } from '../../src/state.js';
 import { createTestDb } from '../helpers.js';
 
+const MOCK_RAW = { sources: [], toolCalls: [], finishReason: 'stop' };
+
 function makeMockProvider(usage = { inputTokens: 200, outputTokens: 150 }): Provider {
   return {
-    execute: async () => ({ output: 'ok', usage, durationMs: 1 }),
+    execute: async () => ({ output: 'ok', usage, durationMs: 1, raw: MOCK_RAW }),
   };
 }
 
@@ -48,9 +50,10 @@ describe('Context post-call budget check', () => {
 
     const warnSpy = mock.method(console, 'warn', () => {});
 
-    const result = await ctx.step('step1', () =>
-      ctx.model.anthropic('any-model', 'prompt', { maxInputTokens: 100, onExceed: 'warn' }),
-    );
+    const result = await ctx.step('step1', async () => {
+      const { output } = await ctx.model.anthropic('any-model', 'prompt', { maxInputTokens: 100, onExceed: 'warn' });
+      return output;
+    });
 
     assert.equal(result, 'ok', 'should still resolve despite budget warning');
     assert.equal(warnSpy.mock.calls.length, 1, 'console.warn should be called once');
@@ -102,9 +105,10 @@ describe('Context post-call budget check', () => {
       providers: { anthropic: makeMockProvider({ inputTokens: 200, outputTokens: 150 }) },
     });
 
-    const result = await ctx.step('step4', () =>
-      ctx.model.anthropic('any-model', 'prompt', { maxInputTokens: 300, maxTokens: 200 }),
-    );
+    const result = await ctx.step('step4', async () => {
+      const { output } = await ctx.model.anthropic('any-model', 'prompt', { maxInputTokens: 300, maxTokens: 200 });
+      return output;
+    });
 
     assert.equal(result, 'ok');
 
@@ -119,9 +123,10 @@ describe('Context post-call budget check', () => {
 
     const warnSpy = mock.method(console, 'warn', () => {});
 
-    await ctx.step('step5', () =>
-      ctx.model.anthropic('any-model', 'prompt', { maxInputTokens: 100, onExceed: 'warn' }),
-    );
+    await ctx.step('step5', async () => {
+      const { output } = await ctx.model.anthropic('any-model', 'prompt', { maxInputTokens: 100, onExceed: 'warn' });
+      return output;
+    });
 
     const cached = state.getStep('step5');
     assert.equal(cached, 'ok', 'step result should be persisted even when budget warn fires');
