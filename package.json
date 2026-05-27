@@ -12,7 +12,7 @@
     "build": "tsc",
     "test": "tsx --test test/unit/*.test.ts test/unit/**/*.test.ts test/integration/**/*.test.ts",
     "test:acceptance": "tsx --test test/acceptance/*.test.ts",
-    "test:functional": "tsx --env-file=.env --test test/functional/*.test.ts test/functional/providers/anthropic.test.ts test/functional/providers/claude-cli.test.ts test/functional/providers/openai.test.ts",
+    "test:functional": "tsx --env-file=.env --test test/functional/*.test.ts test/functional/providers/anthropic.test.ts test/functional/providers/claude-cli.test.ts test/functional/providers/openai.test.ts test/functional/providers/openai-web-search.test.ts",
     "test:functional:concurrency": "tsx --env-file=.env --test test/functional/providers/claude-cli-concurrency.test.ts",
     "test:functional:cli:safe": "tsx --env-file=.env --test --test-name-pattern='executes prompt|returns token' test/functional/providers/claude-cli.test.ts",
     "test:functional:cli:abort": "tsx --env-file=.env --test --test-name-pattern='AbortSignal' test/functional/providers/claude-cli.test.ts",
@@ -20,12 +20,13 @@
     "dev": "tsx"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "3.0.36",
-    "@ai-sdk/openai": "3.0.25",
-    "ai": "6.0.71",
+    "@anthropic-ai/sdk": "0.97.1",
     "better-sqlite3": "12.6.2",
+    "openai": "6.38.0",
     "p-limit": "^7.3.0",
-    "p-retry": "^7.1.1"
+    "p-retry": "^7.1.1",
+    "zod": "^4.4.3",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "7.6.12",
