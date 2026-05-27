@@ -67,21 +67,25 @@ describe('ClaudeCLIProvider', () => {
     assert.ok(thrownError instanceof BudgetExceededError, 'should throw BudgetExceededError when budget exceeded');
   });
 
-  test('step-level maxTokens kills CLI mid-execution', { timeout: 60_000 }, async () => {
+  test('step-level maxTokens — throws BudgetExceededError when output exceeds limit', { timeout: 60_000 }, async () => {
     const stateDir = createTempStateDir('step-budget-cli');
     try {
-      // maxTokens: 50 is far below the system prompt overhead (~200+ input tokens).
-      // monitorBudget will detect the overage and SIGTERM the CLI process.
-      await tuff(
-        'step-budget',
-        { stateDir, concurrency: 1 },
-        async (ctx) => {
-          const result = await ctx.step('capped', () =>
-            ctx.agent.claudeCode(MODEL, 'Write a long essay about the history of computing.', { maxTokens: 50 }),
-          );
-          // If monitorBudget killed it, we still get a result (possibly partial/empty)
-          // The key assertion: the step completes without hanging
-          assert.ok(result !== undefined, 'step should resolve even after budget kill');
+      // maxTokens is a post-call output token limit, same as the API providers.
+      // A long-essay prompt will produce far more than 50 output tokens.
+      await assert.rejects(
+        () => tuff(
+          'step-budget',
+          { stateDir, concurrency: 1 },
+          async (ctx) => {
+            await ctx.step('capped', () =>
+              ctx.agent.claudeCode(MODEL, 'Write a long essay about the history of computing.', { maxTokens: 50 }),
+            );
+          },
+        ),
+        (err: unknown) => {
+          assert.ok(err instanceof Error);
+          assert.strictEqual(err.constructor.name, 'BudgetExceededError');
+          return true;
         },
       );
     } finally {
