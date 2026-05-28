@@ -4,11 +4,40 @@
 
 A lil resumable pipeline toolkit for AI coding agents.
 
-Tuff's an ultra-simple implementation of the 'step function' pattern from Temporal and Inngest, built for AI coding agents like Claude Code and friends. Micro-scale, on your local machine.
+Tuff is an ultra-simple version of the 'step function' pattern from hardcore workflow tools like Temporal.
 
-It's just a little TypeScript and SQLite. Your agent could build this from scratch every time, but Tuff saves it the trouble — so it can focus on what you want to get done.
+It's for building reusable multi-step workflows using AI coding tools like Claude Code, Cowork, Codex and friends.
 
-## Tuff features
+It ain't big. It ain't clever. It's just a little TypeScript and a SQLite database.
+
+## In practice
+
+A GEO study with synthetic personas — hundreds of GPT queries mimicking customer searches, responses post-processed, citations fetched and analysed — iteratively refined and re-run on the fly.
+
+```mermaid
+flowchart TD
+    tuff["tuff('run-id', ...)"] --> C1 & C2 & CN
+
+    C1["Call 1"] --> P1["Process 1"]
+    C2["Call 2"] --> P2["Process 2"]
+    CN["Call N"] --> PN["Process N"]
+
+    P1 --> D1["..."]
+    P2 --> D2["..."]
+    PN --> DN["..."]
+
+    D1 & D2 & DN --> Synth["Synthesise"]
+
+    tuff <-->|"cache / persist"| DB[(tuff.db)]
+
+    style CN stroke-dasharray: 5 5
+    style PN stroke-dasharray: 5 5
+    style D1 stroke-dasharray: 5 5
+    style D2 stroke-dasharray: 5 5
+    style DN stroke-dasharray: 5 5
+```
+
+## Features
 
 - **Slot-based concurrency** — new tasks start when a slot opens (vs. Claude Code's native Tasks = max 10 concurrent in batched waves, slowest holds flow).
 - **Three execution modes, mix freely** — LLM API calls, Claude Code headless using your subscription (play at your own risk), or any async function.
@@ -17,18 +46,7 @@ It's just a little TypeScript and SQLite. Your agent could build this from scrat
 - **Progress and state is queryable** — step results, token usage, and durations land in Tuff's local db. Talk to Claude about progress during execution.
 - **Domain storage** — define your own data tables alongside Tuff's state tables.
 
-## An example pipeline
-
-| Phase | What it does | Model | Calls | Concurrency |
-|-------|-------------|-------|-------|-------------|
-| Collect | Fetch 200 source URLs | *none* | 200 | 50 |
-| Extract | Pull structured data from each page | GPT-5-nano | 200 | 10 |
-| Classify | Score and categorise each result | GPT-5-mini | 200 | 5 |
-| Distil | Aggregate into final report | *none* | 1 | 1 |
-
-~400 LLM calls, 200 HTTP fetches, 4 phases. One `tuff()` call.
-
-## Getting started
+## Get started
 
 Install the skill:
 
@@ -50,8 +68,6 @@ Opus 4.6 · Claude API
 
 ## Code example
 
-The entire runtime is one function call:
-
 ```ts
 // Pipeline 'my-pipeline', state persisted to ./state/tuff.db
 await tuff('my-pipeline', { stateDir: './state' }, async (ctx) => {
@@ -72,13 +88,9 @@ await tuff('my-pipeline', { stateDir: './state' }, async (ctx) => {
 
 ## Status
 
-> You either die a hero or you live long enough to see yourself reimplementing Kubernetes.
-
 Alpha.
 
-Not production-tested.
-
-**Claude Code CLI provider** — a house of cards on top of undocumented Claude Code internals. Use if you're relaxed about robustness, approximate budget tracking is good enough, and you want to use your Claude subscription.
+**Claude Code CLI provider** — a house of cards on top of undocumented Claude Code internals. As of June 2026, `claude -p` draws from a separate Agent SDK credit pool (limited monthly allowance, overages billed at full API rates). Use with care.
 
 ## License
 
