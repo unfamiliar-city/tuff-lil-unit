@@ -2,9 +2,11 @@
 
 ![Tuff Lil Unit](./assets/tuff.jpg)
 
-A lil resumable pipeline toolkit for AI coding agents.
+A lil resumable pipeline toolkit for iterative AI workflow development.
 
-Tuff is an ultra-simple version of the 'step function' pattern from hardcore workflow tools like Temporal.
+Background a multi-step workflow while it runs. Drop and rerun any step as you iterate. Ask your AI about progress and results mid-run from your main thread, and it'll query via SQL.
+
+Tuff's an ultra-simple version of the 'step function' pattern from hardcore workflow tools like Temporal.
 
 It's for building reusable multi-step workflows using AI coding tools like Claude Code, Cowork, Codex and friends.
 
@@ -39,12 +41,13 @@ flowchart TD
 
 ## Features
 
-- **Slot-based concurrency** — new tasks start when a slot opens (vs. Claude Code's native Tasks = max 10 concurrent in batched waves, slowest holds flow).
-- **Three execution modes, mix freely** — LLM API calls, Claude Code headless using your subscription (play at your own risk), or any async function.
-- **Concurrency per stage** — slot limits per phase (fan out high for HTTP fetches, throttle back for LLM processing).
-- **Token budget** — global and per-step limits (Claude Code subprocess kills mid-run).
-- **Progress and state is queryable** — step results, token usage, and durations land in Tuff's local db. Talk to Claude about progress during execution.
-- **Domain storage** — define your own data tables alongside Tuff's state tables.
+- **Any step, any function** — steps can be LLM API calls, HTTP fetches, pure computation, or anything async. Not just agent calls.
+- **Every step is drop + rerunnable** — change the logic, clear the step, rerun from that point. Earlier steps stay cached.
+- **Queryable mid-run** — step results, token usage, and durations land in a local SQLite db as they complete. Ask Claude to query it from your main thread while the pipeline runs in the background.
+- **Domain storage** — define your own data tables in the same SQLite db alongside Tuff's state tables.
+- **Slot-based concurrency** — new tasks start when a slot opens. Set limits per stage: fan out high for fetches, throttle back for LLM calls.
+- **Token budget** — global and per-step limits.
+- **Three providers** — Anthropic API, OpenAI API, or Claude Code CLI using your subscription.
 
 ## Get started
 
