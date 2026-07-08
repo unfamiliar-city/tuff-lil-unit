@@ -18,7 +18,9 @@ A GEO study with synthetic personas — hundreds of GPT queries mimicking custom
 
 ```mermaid
 flowchart TD
-    tuff["tuff('run-id', ...)"] --> C1 & C2 & CN
+    tuff["tuff('run-id', ...)"] --> C1
+    tuff --> C2
+    tuff --> CN
 
     C1["Call 1"] --> P1["Process 1"]
     C2["Call 2"] --> P2["Process 2"]
@@ -28,15 +30,17 @@ flowchart TD
     P2 --> D2["..."]
     PN --> DN["..."]
 
-    D1 & D2 & DN --> Synth["Synthesise"]
+    D1 --> Synth["Synthesise"]
+    D2 --> Synth
+    DN --> Synth
 
     tuff <-->|"cache / persist"| DB[(tuff.db)]
 
-    style CN stroke-dasharray: 5 5
-    style PN stroke-dasharray: 5 5
-    style D1 stroke-dasharray: 5 5
-    style D2 stroke-dasharray: 5 5
-    style DN stroke-dasharray: 5 5
+    style CN stroke-dasharray: 5,5;
+    style PN stroke-dasharray: 5,5;
+    style D1 stroke-dasharray: 5,5;
+    style D2 stroke-dasharray: 5,5;
+    style DN stroke-dasharray: 5,5;
 ```
 
 ## Features
