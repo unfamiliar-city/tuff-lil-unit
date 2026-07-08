@@ -33,7 +33,7 @@ export function createOpenAIProvider(): Provider<OpenAIRaw> {
 
   return {
     async execute(prompt, options) {
-      const { model, signal, maxTokens, system, temperature, topP, schema, tools } = options;
+      const { model, signal, maxTokens, system, temperature, topP, schema, tools, reasoning } = options;
       const startTime = Date.now();
 
       try {
@@ -46,6 +46,7 @@ export function createOpenAIProvider(): Provider<OpenAIRaw> {
           ...(temperature !== undefined ? { temperature } : {}),
           ...(topP !== undefined ? { top_p: topP } : {}),
           ...(tools ? { tools: tools as OpenAI.Responses.Tool[] } : {}),
+          ...(reasoning ? { reasoning } : {}),
           ...(schema ? {
             text: {
               format: {

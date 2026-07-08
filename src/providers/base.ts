@@ -20,6 +20,7 @@ export interface ModelOpts extends StepBudget {
   stopSequences?: string[];
   schema?: ZodType | Record<string, unknown>;
   tools?: unknown;
+  reasoning?: { effort: 'minimal' | 'low' | 'medium' | 'high' };
 }
 
 export interface Provider<R = unknown> {
@@ -29,9 +30,21 @@ export interface Provider<R = unknown> {
   ): Promise<ProviderResult<unknown, R>>;
 }
 
+function isZodSchema(schema: unknown): boolean {
+  // Duck-type check to avoid cross-module instanceof failures when caller's Zod
+  // instance differs from tuff's (e.g. different node_modules trees)
+  return (
+    typeof schema === 'object' &&
+    schema !== null &&
+    '_def' in schema &&
+    'parse' in schema &&
+    typeof (schema as Record<string, unknown>).parse === 'function'
+  );
+}
+
 export function toJSONSchema(schema: ZodType | Record<string, unknown>): Record<string, unknown> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return schema instanceof ZodType ? zodToJsonSchema(schema as any) as Record<string, unknown> : schema;
+  return isZodSchema(schema) ? zodToJsonSchema(schema as any) as Record<string, unknown> : schema as Record<string, unknown>;
 }
 
 export function extractRetryAfter(headers?: Record<string, string>): number | undefined {
