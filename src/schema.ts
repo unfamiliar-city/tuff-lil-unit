@@ -11,6 +11,8 @@ export const SCHEMA_SQL = [
     output TEXT NOT NULL,
     usage_input INTEGER NOT NULL DEFAULT 0,
     usage_output INTEGER NOT NULL DEFAULT 0,
+    usage_cache_read INTEGER NOT NULL DEFAULT 0,
+    usage_cache_creation INTEGER NOT NULL DEFAULT 0,
     duration_ms INTEGER,
     created_at TEXT NOT NULL,
     PRIMARY KEY (run_id, step_id)
@@ -38,6 +40,8 @@ export interface TuffStep {
   output: string;
   usage_input: number;
   usage_output: number;
+  usage_cache_read: number;
+  usage_cache_creation: number;
   duration_ms: number | null;
   created_at: string;
 }
