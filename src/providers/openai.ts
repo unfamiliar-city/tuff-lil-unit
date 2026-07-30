@@ -82,9 +82,17 @@ export function createOpenAIProvider(): Provider<OpenAIRaw> {
               ?.flatMap((c) => c.annotations ?? []) ?? [];
           });
 
+        // NOTE: OpenAI reports input_tokens as the TOTAL, with cached_tokens as a
+        // breakdown inside it. Anthropic reports input_tokens EXCLUDING its cache
+        // buckets. So `inputTokens + cacheReadTokens` is the correct total for the
+        // anthropic provider and double-counts for this one. Any cross-provider cost
+        // calculation has to branch on provider rather than summing uniformly.
+        // No cacheCreationTokens: OpenAI cache writes are automatic and unbilled, so
+        // the field stays undefined rather than reporting a misleading zero.
         const usage: TokenUsage = {
           inputTokens: response.usage?.input_tokens ?? 0,
           outputTokens: response.usage?.output_tokens ?? 0,
+          cacheReadTokens: response.usage?.input_tokens_details?.cached_tokens ?? undefined,
         };
 
         const raw: OpenAIRaw = {

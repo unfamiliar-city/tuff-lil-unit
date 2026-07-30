@@ -13,6 +13,26 @@ export class RateLimitError extends Error {
   }
 }
 
+/**
+ * OpenAI Responses API effort ladder. Vendor-specific despite sitting on the shared
+ * ModelOpts surface — the anthropic and claude-cli providers never read `reasoning`,
+ * so a value set here is silently ignored by them. Anthropic's equivalent is a
+ * different shape entirely (`thinking: { budget_tokens }`); when that needs support,
+ * `reasoning` should move to per-provider option types rather than growing a union
+ * that means different things depending on who reads it.
+ *
+ * Mirrors `ReasoningEffort` in the pinned openai SDK (6.38.0), minus its `null`. The API
+ * docs also list `max`, which the SDK's type does not accept — adding it needs an SDK
+ * bump, not just an entry here.
+ */
+export type OpenAIReasoningEffort =
+  | 'none'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh';
+
 export interface ModelOpts extends StepBudget {
   system?: string;
   temperature?: number;
@@ -20,7 +40,7 @@ export interface ModelOpts extends StepBudget {
   stopSequences?: string[];
   schema?: ZodType | Record<string, unknown>;
   tools?: unknown;
-  reasoning?: { effort: 'minimal' | 'low' | 'medium' | 'high' };
+  reasoning?: { effort: OpenAIReasoningEffort };
 }
 
 export interface Provider<R = unknown> {

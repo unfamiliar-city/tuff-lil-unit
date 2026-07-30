@@ -39,7 +39,7 @@ export class StateManager {
   setStep(
     stepId: string,
     output: unknown,
-    usage?: { inputTokens: number; outputTokens: number },
+    usage?: TokenUsage,
     durationMs?: number,
   ): void {
     // Provider outputs are already JSON-safe: generateText returns strings,
@@ -58,17 +58,20 @@ export class StateManager {
     // Atomically write success + clear any prior failure record
     this.#db.transaction(() => {
       this.#db.prepare(`
-        INSERT INTO tuff_steps (run_id, step_id, output, usage_input, usage_output, duration_ms, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tuff_steps (run_id, step_id, output, usage_input, usage_output, usage_cache_read, usage_cache_creation, duration_ms, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (run_id, step_id) DO UPDATE SET
           output = excluded.output,
           usage_input = excluded.usage_input,
           usage_output = excluded.usage_output,
+          usage_cache_read = excluded.usage_cache_read,
+          usage_cache_creation = excluded.usage_cache_creation,
           duration_ms = excluded.duration_ms,
           created_at = excluded.created_at
       `).run(
         this.#runId, stepId, serialized,
         usage?.inputTokens ?? 0, usage?.outputTokens ?? 0,
+        usage?.cacheReadTokens ?? 0, usage?.cacheCreationTokens ?? 0,
         durationMs ?? null, now,
       );
       this.#db.prepare(
@@ -115,15 +118,33 @@ export class StateManager {
     return row.count;
   }
 
-  /** Sums token usage across all completed steps — used to restore BudgetManager on resume. */
+  /**
+   * Sums token usage across all completed steps — used to restore BudgetManager on resume.
+   *
+   * Must return the cache buckets too: BudgetManager counts cacheCreationTokens toward the
+   * budget total, so omitting them let a resumed run under-count everything it had already
+   * spent on cache writes.
+   */
   getUsageSummary(): TokenUsage {
-    const row = this.#db.prepare(
-      'SELECT COALESCE(SUM(usage_input), 0) AS input_total, COALESCE(SUM(usage_output), 0) AS output_total FROM tuff_steps WHERE run_id = ?',
-    ).get(this.#runId) as { input_total: number; output_total: number };
+    const row = this.#db.prepare(`
+      SELECT
+        COALESCE(SUM(usage_input), 0) AS input_total,
+        COALESCE(SUM(usage_output), 0) AS output_total,
+        COALESCE(SUM(usage_cache_read), 0) AS cache_read_total,
+        COALESCE(SUM(usage_cache_creation), 0) AS cache_creation_total
+      FROM tuff_steps WHERE run_id = ?
+    `).get(this.#runId) as {
+      input_total: number;
+      output_total: number;
+      cache_read_total: number;
+      cache_creation_total: number;
+    };
 
     return {
       inputTokens: row.input_total,
       outputTokens: row.output_total,
+      cacheReadTokens: row.cache_read_total,
+      cacheCreationTokens: row.cache_creation_total,
     };
   }
 }
