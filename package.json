@@ -1,6 +1,6 @@
 {
   "name": "tuff-lil-unit",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "type": "module",
   "description": "High-concurrency LLM orchestration library with slot-based execution and budget controls",
   "main": "./dist/index.js",
